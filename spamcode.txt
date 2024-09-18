@@ -1,0 +1,96 @@
+import tensorflow as tf
+print(tf.__version__)
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.layers import Dense , Input , GlobalMaxPool1D
+from tensorflow.keras.layers import Conv1D,MaxPooling1D , Embedding
+from tensorflow.keras.models import Model
+
+df = pd.read_csv('spam.csv' , encoding = 'ISO-8859-1')
+df.head()
+
+df = df.drop(["Unnamed: 2","Unnamed: 3","Unnamed: 4"] , axis=1)
+df.head()
+df.columns = ['labels' , 'data']
+
+df['b_labels'] = df['labels'].map({'ham':0,'spam' :1})
+y = df['b_labels'].values
+y
+
+#Splitting Training data and Testing data
+x_train , x_test , y_train , y_test = train_test_split(df['data'] , y , test_size=0.33)
+
+#Converting Sentences to sequences
+max_vocab_size = 20000
+tokenizer = Tokenizer(num_words=max_vocab_size)
+tokenizer.fit_on_texts(x_train)
+sequences_train = tokenizer.texts_to_sequences(x_train)
+sequences_test = tokenizer.texts_to_sequences(x_test)
+
+#Check word index Mapping
+word2idx = tokenizer.word_index
+V = len(word2idx)
+print("Unique token count : %s" % V)
+
+#Pad Sequences ( to get N * T matrix)
+data_train = pad_sequences(sequences_train)
+print(data_train.shape)
+
+T = data_train.shape[1]
+print(T)
+
+data_test = pad_sequences(sequences_test , maxlen=T)
+#maxlen to truncate longer sentences in test set
+print(data_test.shape)
+
+# Emdedding Dimensionality
+D = 20 # Vector Size
+
+# Input Layer
+i = Input(shape=(T,)) # input layer takes in sequence of integers , so shape is T
+
+
+
+# Embedding Layer
+x = Embedding(V + 1 , D)(i) # Takes seq of integers and returns seq of word vectors . N * T * D array . Indexing starts from 1, so embedding size = (V+1) * D
+# First CNN Layer
+x = Conv1D(32 , 3 , activation='relu')(x)
+x = MaxPooling1D(3)(x)
+# Second CNN Layer
+x = Conv1D(64 , 3 , activation='relu')(x)
+x = MaxPooling1D(3)(x)
+# Third CNN Layer
+#First CNN Layer
+x = Conv1D(128 , 3 , activation='relu')(x)
+x = GlobalMaxPool1D()(x)
+# Dense Layer
+x = Dense(1, activation='sigmoid')(x) # sigmoid because of binary classification
+model = Model(i, x)
+
+
+
+# Compile the Model
+model.compile(optimizer='adam' , loss='binary_crossentropy' , metrics=['accuracy'])
+
+#Train the Model
+r = model.fit(x=data_train , y=y_train , epochs=5 , validation_data=(data_test,y_test)) 
+
+# Loss per iteration 
+import matplotlib.pyplot as plt
+plt.plot(r.history['loss'],label = 'Loss')
+plt.plot(r.history['val_loss'],label = 'Validation Loss')
+plt.legend()
+plt.show()
+
+# Accuracy per Iteration
+plt.plot(r.history['accuracy'] , label = 'Accuracy')
+plt.plot(r.history['val_accuracy'] , label = 'Validation Accuracy')
+plt.legend()
+plt.show()
